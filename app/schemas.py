@@ -17,7 +17,7 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    #login_as: str  # "patient" | "doctor" | "admin"
+    login_as: str  # "patient" | "doctor" | "admin"
 
     class Config:
         orm_mode = True
@@ -30,3 +30,12 @@ class TokenResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+    
+class UserResponse(BaseModel):
+    id: int
+    email: EmailStr
+    role: str
+
+    class Config:
+        from_attributes = True

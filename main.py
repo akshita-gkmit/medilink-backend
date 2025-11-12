@@ -1,9 +1,17 @@
 from fastapi import FastAPI
-app=FastAPI()
+from app.database import Base, engine
+from app import models
+from app.routes import auth_routes
 
-def main():
-    print("Hello from medilink-backend!")
+# Create tables
+Base.metadata.create_all(bind=engine)
 
+app = FastAPI(title="MediLink API", version="1.0.0")
 
-if __name__ == "__main__":
-    main()
+# Include routers
+app.include_router(auth_routes.router)
+
+@app.get("/")
+def root():
+    return {"message": "Welcome to MediLink backend!"}
+    raise HTTPException(status_code=401, detail="Invalid email or password")    
