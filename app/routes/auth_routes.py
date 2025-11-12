@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
-from app.auth import get_password_hash, verify_password, create_access_token
+from app.auth import get_password_hash, verify_password, create_access_token, create_refresh_token
 from datetime import datetime
 
 router = APIRouter(prefix="", tags=["Authentication"])
@@ -10,12 +10,13 @@ router = APIRouter(prefix="", tags=["Authentication"])
 
 @router.post("/register", response_model=schemas.UserResponse)
 def register_user(request: schemas.RegisterRequest, db: Session = Depends(get_db)):
-    # Check if email already exists
+   
     existing_user = db.query(models.User).filter(models.User.email == request.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Create user entry
+    
+    
     user = models.User(
         email=request.email,
         password_hash=get_password_hash(request.password),
@@ -26,7 +27,8 @@ def register_user(request: schemas.RegisterRequest, db: Session = Depends(get_db
     db.commit()
     db.refresh(user)
 
-    # Assign default 'patient' role
+   
+   
     role = db.query(models.Role).filter(models.Role.name == "patient").first()
     if not role:
         role = models.Role(name="patient", created_at=datetime.utcnow())
@@ -38,7 +40,8 @@ def register_user(request: schemas.RegisterRequest, db: Session = Depends(get_db
     db.add(user_role)
     db.commit()
 
-    # Create patient profile
+    
+    
     patient = models.Patient(
         user_id=user.id,
         name=request.name,
@@ -73,16 +76,19 @@ def login_user(request: schemas.LoginRequest, db: Session = Depends(get_db)):
 
     role_name = user_role[0]
 
-    # Enforce login_as validation
+    
+    
     if request.login_as.lower() != role_name.lower():
         raise HTTPException(status_code=401, detail=f"User not authorized as {request.login_as}")
 
-    # Create token payload
+    
+    
     token_data = {"sub": user.email, "role": role_name}
     access_token = create_access_token(data=token_data)
+    refresh_token = create_refresh_token(data=token_data)
 
     return {
         "access_token": access_token,
-        "token_type": "bearer",
+        "refresh_token": refresh_token,
         "role": role_name
     }

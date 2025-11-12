@@ -25,7 +25,7 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str
+    refresh_token: str
     role: str
 
     class Config:
