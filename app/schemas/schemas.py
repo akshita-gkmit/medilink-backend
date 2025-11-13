@@ -17,7 +17,6 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    login_as: str  # "patient" | "doctor" | "admin"
 
     class Config:
         orm_mode = True

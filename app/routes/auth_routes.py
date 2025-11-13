@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app import models, schemas
-from app.database import get_db
-from app.auth import get_password_hash, verify_password, create_access_token, create_refresh_token
+from app.models import models
+from app.schemas import schemas
+from app.db.database import get_db
+from app.config.auth import get_password_hash, verify_password, create_access_token, create_refresh_token
 from datetime import datetime
 
 router = APIRouter(prefix="", tags=["Authentication"])
@@ -58,12 +59,12 @@ def register_user(request: schemas.RegisterRequest, db: Session = Depends(get_db
 
 @router.post("/login", response_model=schemas.TokenResponse)
 def login_user(request: schemas.LoginRequest, db: Session = Depends(get_db)):
+    
     user = db.query(models.User).filter(models.User.email == request.email).first()
 
     if not user or not verify_password(request.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    # Find user role
     user_role = (
         db.query(models.Role.name)
         .join(models.UserRole, models.UserRole.role_id == models.Role.id)
@@ -74,15 +75,9 @@ def login_user(request: schemas.LoginRequest, db: Session = Depends(get_db)):
     if not user_role:
         raise HTTPException(status_code=400, detail="Role not assigned")
 
-    role_name = user_role[0]
+    role_name = user_role[0]   #patient / doctor / admin
 
-    
-    
-    if request.login_as.lower() != role_name.lower():
-        raise HTTPException(status_code=401, detail=f"User not authorized as {request.login_as}")
 
-    
-    
     token_data = {"sub": user.email, "role": role_name}
     access_token = create_access_token(data=token_data)
     refresh_token = create_refresh_token(data=token_data)
