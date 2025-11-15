@@ -61,3 +61,29 @@ def create_doctor_admin(payload: DoctorAdminCreate, db: Session = Depends(get_db
 
     return {"message": "Doctor created successfully", "doctor_id": doctor.id, "user_id": user.id}
 
+@router.get("/")
+def list_doctors(
+    specialization: Optional[str] = None,
+    status: Optional[bool] = None,
+    db: Session = Depends(get_db),
+    payload: dict = Depends(verify_token)  # identify user
+):
+    user_role = payload.get("role")
+
+    query = db.query(models.Doctor)
+
+    if specialization:
+        query = query.filter(models.Doctor.specialization.ilike(f"%{specialization}%"))
+
+    
+    if user_role in ["doctor", "patient"]:
+        # Only active, not-deleted doctors
+        query = query.filter(
+            models.Doctor.status.is_(True),
+            models.Doctor.deleted_at.is_(None)
+        )
+    else:
+        if status is not None:
+            query = query.filter(models.Doctor.status.is_(status))
+
+    return query.all()
