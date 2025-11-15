@@ -1,6 +1,11 @@
 from sqlalchemy.orm import Session
 from app.models import User, Role, UserRole, Doctor, Patient
 from passlib.context import CryptContext
+import logging
+from app.enums.gender import GenderEnum
+
+logger = logging.getLogger(__name__)
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -14,7 +19,7 @@ PATIENT_EMAIL = "patient1@gmail.com"
 DEFAULT_PASSWORD = "Password@123"
 
 
-def seed_roles(db: Session):
+def _seed_roles(db: Session):
     """Seed default roles if missing."""
     existing_roles = {r.name for r in db.query(Role).all()}
 
@@ -26,17 +31,17 @@ def seed_roles(db: Session):
         for role_name in missing_roles:
             db.add(Role(name=role_name))
         db.commit()
-        print(f"Added missing roles: {', '.join(missing_roles)}")
+        logger.info(f"Added missing roles: {', '.join(missing_roles)}")
     else:
-        print("All roles already exist.")
+        logger.info("All roles already exist.")
 
 
 
-def create_user(db: Session, email: str, role_name: str):
+def _create_user(db: Session, email: str, role_name: str):
     """Create a user with the given role if not exists."""
     user = db.query(User).filter(User.email == email).first()
     if user:
-        print(f"{role_name} user already exists.")
+        logger.info(f"{role_name} user already exists.")
         return user
 
     hashed_password = pwd_context.hash(DEFAULT_PASSWORD)
@@ -52,20 +57,20 @@ def create_user(db: Session, email: str, role_name: str):
     db.add(user_role)
     db.commit()
 
-    print(f"{role_name} user created.")
+    logger.info(f"{role_name} user created.")
     return user
 
 
-def seed_admin(db: Session):
-    return create_user(db, ADMIN_EMAIL, "Admin")
+def _seed_admin(db: Session):
+    return _create_user(db, ADMIN_EMAIL, "Admin")
 
 
-def seed_doctor(db: Session):
-    user = create_user(db, DOCTOR_EMAIL, "Doctor")
+def _seed_doctor(db: Session):
+    user = _create_user(db, DOCTOR_EMAIL, "Doctor")
 
     doctor = db.query(Doctor).filter(Doctor.user_id == user.id).first()
     if doctor:
-        print("Doctor record already exists.")
+        logger.info("Doctor record already exists.")
         return
 
     doctor = Doctor(
@@ -79,31 +84,31 @@ def seed_doctor(db: Session):
     )
     db.add(doctor)
     db.commit()
-    print("Doctor details seeded.")
+    logger.info("Doctor details seeded.")
 
 
-def seed_patient(db: Session):
-    user = create_user(db, PATIENT_EMAIL, "Patient")
+def _seed_patient(db: Session):
+    user = _create_user(db, PATIENT_EMAIL, "Patient")
 
     patient = db.query(Patient).filter(Patient.user_id == user.id).first()
     if patient:
-        print("Patient record already exists.")
+        logger.info("Patient record already exists.")
         return
 
     patient = Patient(
         user_id=user.id,
         name="Jane Smith",
-        gender="Female",
+        gender=GenderEnum.female ,
     )
     db.add(patient)
     db.commit()
-    print("Patient details seeded.")
+    logger.info("Patient details seeded.")
 
 
 def run_seeder(db: Session):
-    print("---- Running Seeder ----")
-    seed_roles(db)
-    seed_admin(db)
-    seed_doctor(db)
-    seed_patient(db)
-    print("---- Seeding Complete ----")
+    logger.info("---- Running Seeder ----")
+    _seed_roles(db)
+    _seed_admin(db)
+    _seed_doctor(db)
+    _seed_patient(db)
+    logger.info("---- Seeding Complete ----")

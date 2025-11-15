@@ -1,25 +1,26 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import date
+from app.enums.gender import GenderEnum
+
 
 class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
-    gender: str # "male" | "female" | "other"
+    gender: GenderEnum
     dob: date
     blood_group: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
+
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 class TokenResponse(BaseModel):
@@ -27,8 +28,7 @@ class TokenResponse(BaseModel):
     refresh_token: str
     role: str
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
     
 class UserResponse(BaseModel):

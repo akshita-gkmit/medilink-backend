@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from app.db.database import Base, engine, SessionLocal
 from app.db.seed import run_seeder
 from app.models import models
-from app.routes import auth_routes
+from app.routes import auth_routes, doctor_routes, admin_routes
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -16,8 +16,9 @@ def startup_event():
     db.close()
 
 
-# Include routers
 app.include_router(auth_routes.router)
+#app.include_router(doctor_routes.router)
+#app.include_router(admin_routes.router)
 
 @app.get("/")
 def root():

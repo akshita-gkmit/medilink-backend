@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session
 from app.models import models
 from app.schemas import schemas
 from app.db.database import get_db
-from app.config.auth import get_password_hash, verify_password, create_access_token, create_refresh_token
+from app.config.auth import get_password_hash, verify_password, create_access_token, create_refresh_token, verify_token
 from datetime import datetime
 
-router = APIRouter(prefix="", tags=["Authentication"])
+router = APIRouter(prefix="/auth")
 
 
 @router.post("/register", response_model=schemas.UserResponse)
@@ -87,3 +87,12 @@ def login_user(request: schemas.LoginRequest, db: Session = Depends(get_db)):
         "refresh_token": refresh_token,
         "role": role_name
     }
+
+@router.get("/validate-token")
+def validate_token(payload = Depends(verify_token)):
+    return {
+        "message": "Token is valid",
+        "email": payload.get("sub"),
+        "role": payload.get("role")
+    }
+

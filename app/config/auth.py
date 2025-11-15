@@ -7,9 +7,9 @@ from dotenv import load_dotenv
 from pathlib import Path
 from app.config.config import Config
 import os
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
 
 def get_password_hash(password):
     return pwd_context.hash(password)
@@ -32,8 +32,9 @@ def create_refresh_token(data: dict):
 def verify_token(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, Config.SECRET_KEY, algorithms=[Config.ALGORITHM])
-        if payload.get("type") != "access":
-            raise HTTPException(status_code=401, detail="Invalid token type")
+        # No token type check needed
+        return payload
+
         return payload
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")

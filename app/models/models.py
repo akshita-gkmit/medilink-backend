@@ -5,7 +5,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 from app.db.database import Base
-
+from sqlalchemy import Enum as SAEnum
+from app.enums.gender import GenderEnum
 
 class User(BaseModel):
     __tablename__ = "users"
@@ -40,7 +41,7 @@ class Patient(BaseModel):
 
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name = Column(String(100), nullable=False)
-    gender = Column(String(10))
+    gender = Column(SAEnum(GenderEnum), nullable=True)
     dob = Column(Date)
     blood_group = Column(String(10))
 
