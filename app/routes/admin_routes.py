@@ -100,3 +100,33 @@ def get_doctor_by_email(email: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor profile not found for this email")
 
     return doctor
+
+@router.get("/appointments", dependencies=[Depends(RoleChecker(["admin"]))])
+def get_all_appointments(db: Session = Depends(get_db)):
+    appointments = (
+        db.query(models.Appointment)
+        .join(models.Doctor, models.Appointment.doctor_id == models.Doctor.id)
+        .join(models.Patient, models.Appointment.patient_id == models.Patient.id)
+        .all()
+    )
+
+    if not appointments:
+        return {"message": "No appointments found", "appointments": []}
+
+    response = []
+    for ap in appointments:
+        response.append({
+            "appointment_id": ap.id,
+            "doctor_name": ap.doctor.name,
+            "patient_name": ap.patient.name,
+            "appointment_date": ap.slot.date,
+            "start_time": ap.slot.start_time,
+            "end_time": ap.slot.end_time,
+            "status": ap.status,   # pending / approved / cancelled
+        })
+
+    return {
+        "message": "Appointments fetched successfully",
+        "count": len(response),
+        "appointments": response
+    }
