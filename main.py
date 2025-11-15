@@ -7,7 +7,7 @@ from app.routes import auth_routes, doctor_routes, admin_routes
 # Create tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="MediLink API", version="1.0.0")
+app = FastAPI(title="MediLink API")
 
 @app.on_event("startup")
 def startup_event():
@@ -18,7 +18,7 @@ def startup_event():
 
 app.include_router(auth_routes.router)
 #app.include_router(doctor_routes.router)
-#app.include_router(admin_routes.router)
+app.include_router(admin_routes.router)
 
 @app.get("/")
 def root():
