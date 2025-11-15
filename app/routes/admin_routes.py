@@ -87,3 +87,16 @@ def list_doctors(
             query = query.filter(models.Doctor.status.is_(status))
 
     return query.all()
+
+@router.get("/by-email", dependencies=[Depends(RoleChecker(["admin", "doctor", "patient"]))])
+def get_doctor_by_email(email: str, db: Session = Depends(get_db)):
+    
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User with this email not found")
+
+    doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doctor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor profile not found for this email")
+
+    return doctor
