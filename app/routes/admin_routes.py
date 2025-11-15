@@ -130,3 +130,38 @@ def get_all_appointments(db: Session = Depends(get_db)):
         "count": len(response),
         "appointments": response
     }
+
+@router.patch("/doctor/delete/{email}", dependencies=[Depends(RoleChecker(["admin"]))])
+def soft_delete_doctor_by_email(email: str, db: Session = Depends(get_db)):
+    
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    
+    doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doctor:
+        raise HTTPException(status_code=400, detail="This user is not a doctor")
+
+    
+    if doctor.deleted_at:
+        return {
+            "message": "Doctor already deleted",
+            "email": email,
+            "deleted_at": doctor.deleted_at
+        }
+
+    
+    doctor.deleted_at = datetime.utcnow()
+    doctor.status = False   # mark inactive
+    db.commit()
+    db.refresh(doctor)
+
+    return {
+        "message": "Doctor deleted successfully",
+        "email": email,
+        "doctor_id": doctor.id,
+        "status": doctor.status,
+        "deleted_at": doctor.deleted_at
+    }
+
