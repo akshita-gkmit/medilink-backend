@@ -8,8 +8,8 @@ class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
-    gender: GenderEnum
-    dob: date
+    gender: str
+    dob: str
     blood_group: Optional[str] = None
 
     model_config = {"from_attributes": True}
