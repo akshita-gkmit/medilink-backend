@@ -1,19 +1,30 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.config.auth import RoleChecker, verify_token
 from typing import Optional
+from datetime import datetime
+
 from app.db.database import get_db
-from app.config.auth import get_password_hash
+from app.config.auth import RoleChecker, verify_token, get_password_hash
 from app.models import models
 from app.schemas.doctor_schema import DoctorAdminCreate, DoctorAdminUpdate
-from datetime import datetime
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
+# 1. ADMIN DASHBOARD
 @router.get("/dashboard", dependencies=[Depends(RoleChecker(["admin"]))])
-def get_admin_dashboard():
-    return {"status": "Admin dashboard working!"}
+def get_admin_dashboard(db: Session = Depends(get_db)):
 
+    total_doctors = db.query(models.Doctor).filter(models.Doctor.deleted_at.is_(None)).count()
+    total_users = db.query(models.User).count()
+    total_appointments = db.query(models.Appointment).count()
+
+    return {
+        "total_doctors": total_doctors,
+        "total_users": total_users,
+        "total_appointments": total_appointments
+    }
+
+# 2. CREATE DOCTOR (ADMIN)
 @router.post("/create", dependencies=[Depends(RoleChecker(["admin"]))])
 def create_doctor_admin(payload: DoctorAdminCreate, db: Session = Depends(get_db)):
 
@@ -21,6 +32,7 @@ def create_doctor_admin(payload: DoctorAdminCreate, db: Session = Depends(get_db
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already exists")
 
+    # Create user
     user = models.User(
         email=payload.email,
         password_hash=get_password_hash(payload.password),
@@ -31,6 +43,7 @@ def create_doctor_admin(payload: DoctorAdminCreate, db: Session = Depends(get_db
     db.commit()
     db.refresh(user)
 
+    # Assign doctor role
     doctor_role = db.query(models.Role).filter(models.Role.name == "doctor").first()
     if not doctor_role:
         doctor_role = models.Role(name="doctor", created_at=datetime.utcnow())
@@ -42,6 +55,7 @@ def create_doctor_admin(payload: DoctorAdminCreate, db: Session = Depends(get_db
     db.add(user_role)
     db.commit()
 
+    # Create doctor profile
     doctor = models.Doctor(
         user_id=user.id,
         name=payload.name,
@@ -61,107 +75,106 @@ def create_doctor_admin(payload: DoctorAdminCreate, db: Session = Depends(get_db
 
     return {"message": "Doctor created successfully", "doctor_id": doctor.id, "user_id": user.id}
 
+# 3. LIST DOCTORS (ADMIN)
 @router.get("/")
 def list_doctors(
     specialization: Optional[str] = None,
     status: Optional[bool] = None,
     db: Session = Depends(get_db),
-    payload: dict = Depends(verify_token)  # identify user
+    payload: dict = Depends(verify_token)
 ):
     user_role = payload.get("role")
 
+    # Base query
     query = db.query(models.Doctor)
 
+    # Filter by specialization
     if specialization:
         query = query.filter(models.Doctor.specialization.ilike(f"%{specialization}%"))
 
-    
-    if user_role in ["doctor", "patient"]:
-        # Only active, not-deleted doctors
-        query = query.filter(
-            models.Doctor.status.is_(True),
-            models.Doctor.deleted_at.is_(None)
-        )
-    else:
-        if status is not None:
-            query = query.filter(models.Doctor.status.is_(status))
+    if user_role == "admin":
+        if status is not None:  # admin can filter status
+            query = query.filter(models.Doctor.status == status)
 
-    return query.all()
+    doctors = query.all()
 
-@router.get("/by-email", dependencies=[Depends(RoleChecker(["admin", "doctor", "patient"]))])
+    # Convert to JSON-friendly response
+    return [
+        {
+            "id": d.id,
+            "name": d.name,
+            "specialization": d.specialization,
+            "status": d.status,
+            "deleted_at": d.deleted_at
+        }
+        for d in doctors
+    ]
+
+# 4. GET SINGLE DOCTOR (VIEW BUTTON)
+@router.get("/doctor/email/{email}", dependencies=[Depends(RoleChecker(["admin"]))])
 def get_doctor_by_email(email: str, db: Session = Depends(get_db)):
-    
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User with this email not found")
 
-    doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    if not doctor:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor profile not found for this email")
-
-    return doctor
-
-@router.get("/appointments", dependencies=[Depends(RoleChecker(["admin"]))])
-def get_all_appointments(db: Session = Depends(get_db)):
-    appointments = (
-        db.query(models.Appointment)
-        .join(models.Doctor, models.Appointment.doctor_id == models.Doctor.id)
-        .join(models.Patient, models.Appointment.patient_id == models.Patient.id)
-        .all()
+    doctor = (
+        db.query(models.Doctor)
+        .join(models.User, models.Doctor.user_id == models.User.id)
+        .filter(models.User.email == email)
+        .first()
     )
 
-    if not appointments:
-        return {"message": "No appointments found", "appointments": []}
-
-    response = []
-    for ap in appointments:
-        response.append({
-            "appointment_id": ap.id,
-            "doctor_name": ap.doctor.name,
-            "patient_name": ap.patient.name,
-            "appointment_date": ap.slot.date,
-            "start_time": ap.slot.start_time,
-            "end_time": ap.slot.end_time,
-            "status": ap.status,   # pending / approved / cancelled
-        })
+    if not doctor:
+        raise HTTPException(404, "Doctor not found")
 
     return {
-        "message": "Appointments fetched successfully",
-        "count": len(response),
-        "appointments": response
+        "id": doctor.id,
+        "name": doctor.name,
+        "email": doctor.user.email,  # <-- email comes from User table
+        "specialization": doctor.specialization,
+        "qualification": doctor.qualification,
+        "position": doctor.position,
+        "dob": doctor.dob,
+        "chamber": doctor.chamber,
+        "start_time": doctor.start_time,
+        "end_time": doctor.end_time,
+        "status": doctor.status,
+        "consultation_fee": doctor.consultation_fee
     }
 
-@router.patch("/doctor/delete/{email}", dependencies=[Depends(RoleChecker(["admin"]))])
-def soft_delete_doctor_by_email(email: str, db: Session = Depends(get_db)):
-    
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+# 5. UPDATE DOCTOR (ADMIN)
+@router.put("/doctor/update/{doctor_id}", dependencies=[Depends(RoleChecker(["admin"]))])
+def update_doctor(doctor_id: int, payload: DoctorAdminUpdate, db: Session = Depends(get_db)):
 
-    
-    doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    doctor = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
     if not doctor:
-        raise HTTPException(status_code=400, detail="This user is not a doctor")
+        raise HTTPException(404, "Doctor not found")
 
-    
-    if doctor.deleted_at:
-        return {
-            "message": "Doctor already deleted",
-            "email": email,
-            "deleted_at": doctor.deleted_at
-        }
+    doctor.name = payload.name
+    doctor.specialization = payload.specialization
+    doctor.qualification = payload.qualification
+    doctor.position = payload.position
+    doctor.chamber = payload.chamber
+    doctor.start_time = payload.start_time
+    doctor.end_time = payload.end_time
+    doctor.consultation_fee = payload.consultation_fee
+    doctor.status = payload.status
 
-    
-    doctor.deleted_at = datetime.utcnow()
-    doctor.status = False   # mark inactive
     db.commit()
     db.refresh(doctor)
 
-    return {
-        "message": "Doctor deleted successfully",
-        "email": email,
-        "doctor_id": doctor.id,
-        "status": doctor.status,
-        "deleted_at": doctor.deleted_at
-    }
+    return {"message": "Doctor updated successfully", "doctor_id": doctor.id}
 
+# 6. DELETE DOCTOR (SOFT DELETE)
+@router.patch("/doctor/delete/{doctor_id}", dependencies=[Depends(RoleChecker(["admin"]))])
+def soft_delete_doctor(doctor_id: int, db: Session = Depends(get_db)):
+
+    doctor = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
+    if not doctor:
+        raise HTTPException(404, "Doctor not found")
+
+    if doctor.deleted_at:
+        return {"message": "Doctor already deleted"}
+
+    doctor.deleted_at = datetime.utcnow()
+    doctor.status = False
+    db.commit()
+
+    return {"message": "Doctor deleted successfully", "doctor_id": doctor_id}
