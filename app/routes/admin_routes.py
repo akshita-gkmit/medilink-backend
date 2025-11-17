@@ -140,27 +140,26 @@ def get_doctor_by_email(email: str, db: Session = Depends(get_db)):
     }
 
 # 5. UPDATE DOCTOR (ADMIN)
-@router.put("/doctor/update/{doctor_id}", dependencies=[Depends(RoleChecker(["admin"]))])
+@router.patch("/doctor/update/{doctor_id}", dependencies=[Depends(RoleChecker(["admin"]))])
 def update_doctor(doctor_id: int, payload: DoctorAdminUpdate, db: Session = Depends(get_db)):
 
     doctor = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
     if not doctor:
         raise HTTPException(404, "Doctor not found")
 
-    doctor.name = payload.name
-    doctor.specialization = payload.specialization
-    doctor.qualification = payload.qualification
-    doctor.position = payload.position
-    doctor.chamber = payload.chamber
-    doctor.start_time = payload.start_time
-    doctor.end_time = payload.end_time
-    doctor.consultation_fee = payload.consultation_fee
-    doctor.status = payload.status
+    # Update only the fields provided
+    update_data = payload.dict(exclude_unset=True)
+    
+    for field, value in update_data.items():
+        setattr(doctor, field, value)
+
+    doctor.updated_at = datetime.utcnow()
 
     db.commit()
     db.refresh(doctor)
 
     return {"message": "Doctor updated successfully", "doctor_id": doctor.id}
+
 
 # 6. DELETE DOCTOR (SOFT DELETE)
 @router.patch("/doctor/delete/{doctor_id}", dependencies=[Depends(RoleChecker(["admin"]))])
