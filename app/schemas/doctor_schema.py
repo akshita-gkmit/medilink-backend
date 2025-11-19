@@ -1,5 +1,5 @@
-from pydantic import BaseModel,  EmailStr
-from datetime import date, time
+from pydantic import BaseModel,  EmailStr, ConfigDict
+from datetime import date, time, datetime
 
 class DoctorCreate(BaseModel):
     user_id: int
@@ -42,12 +42,11 @@ class DoctorOut(BaseModel):
     specialization: str | None
     qualification: str | None
     position: str | None
-    chamber: str | None
+    status: str | None
+    consultation_fee: int | None
 
-    model_config = {
-        "from_attributes": True
-    }
-
+    class Config:
+        orm_mode = True
 
 class DoctorAdminUpdate(BaseModel):
     email: EmailStr | None = None
@@ -73,3 +72,25 @@ class DoctorResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class DoctorPublicResponse(BaseModel):
+    id: int
+    name: str
+    specialization: str
+    chamber: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class DoctorAdminResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    specialization: str
+    qualification: str | None = None
+    position: str | None = None
+    chamber: str | None = None
+    status: bool
+    created_at: str | None = None
+    updated_at: str | None = None
+    deleted_at: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)

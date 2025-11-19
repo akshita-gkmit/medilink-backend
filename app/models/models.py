@@ -69,8 +69,10 @@ class Doctor(BaseModel):
     appointments = relationship("Appointment", back_populates="doctor", cascade="all, delete-orphan")
 
 
-class Slot(BaseModel):
+class Slot(BaseModel):   
     __tablename__ = "slots"
+
+    id = Column(Integer, primary_key=True, index=True)   
 
     doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"), nullable=False)
     date = Column(Date, nullable=False, index=True)
@@ -84,7 +86,6 @@ class Slot(BaseModel):
 
     doctor = relationship("Doctor", back_populates="slots")
     appointments = relationship("Appointment", back_populates="slot")
-
 
 class Appointment(BaseModel):
     __tablename__ = "appointments"
