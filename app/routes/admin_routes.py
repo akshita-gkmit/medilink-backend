@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
-
 from app.db.database import get_db
 from app.config.auth import RoleChecker, verify_token, get_password_hash
 from app.models import models
-from app.schemas.doctor_schema import DoctorAdminCreate, DoctorAdminUpdate
+from app.schemas.doctor_schema import DoctorAdminCreate, DoctorAdminUpdate, DoctorAdminResponse, DoctorPublicResponse, DoctorOut
+from app.config.auth import get_current_user
+
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -17,11 +18,17 @@ def get_admin_dashboard(db: Session = Depends(get_db)):
     total_doctors = db.query(models.Doctor).filter(models.Doctor.deleted_at.is_(None)).count()
     total_users = db.query(models.User).count()
     total_appointments = db.query(models.Appointment).count()
+    pending_requests = (
+        db.query(models.Appointment)
+        .filter(models.Appointment.status == "pending")
+        .count()
+    )
 
     return {
         "total_doctors": total_doctors,
         "total_users": total_users,
-        "total_appointments": total_appointments
+        "total_appointments": total_appointments,
+        "pending_requests": pending_requests
     }
 
 # 2. CREATE DOCTOR (ADMIN)
@@ -104,40 +111,13 @@ def list_doctors(
             "id": d.id,
             "name": d.name,
             "specialization": d.specialization,
+            "position": d.position,
             "status": d.status,
             "deleted_at": d.deleted_at
         }
         for d in doctors
     ]
 
-# 4. GET SINGLE DOCTOR (VIEW BUTTON)
-@router.get("/doctor/email/{email}", dependencies=[Depends(RoleChecker(["admin"]))])
-def get_doctor_by_email(email: str, db: Session = Depends(get_db)):
-
-    doctor = (
-        db.query(models.Doctor)
-        .join(models.User, models.Doctor.user_id == models.User.id)
-        .filter(models.User.email == email)
-        .first()
-    )
-
-    if not doctor:
-        raise HTTPException(404, "Doctor not found")
-
-    return {
-        "id": doctor.id,
-        "name": doctor.name,
-        "email": doctor.user.email,  # <-- email comes from User table
-        "specialization": doctor.specialization,
-        "qualification": doctor.qualification,
-        "position": doctor.position,
-        "dob": doctor.dob,
-        "chamber": doctor.chamber,
-        "start_time": doctor.start_time,
-        "end_time": doctor.end_time,
-        "status": doctor.status,
-        "consultation_fee": doctor.consultation_fee
-    }
 
 # 5. UPDATE DOCTOR (ADMIN)
 @router.patch("/doctor/update/{doctor_id}", dependencies=[Depends(RoleChecker(["admin"]))])
@@ -165,15 +145,51 @@ def update_doctor(doctor_id: int, payload: DoctorAdminUpdate, db: Session = Depe
 @router.patch("/doctor/delete/{doctor_id}", dependencies=[Depends(RoleChecker(["admin"]))])
 def soft_delete_doctor(doctor_id: int, db: Session = Depends(get_db)):
 
-    doctor = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
+    doctor = db.query(models.Doctor).filter(
+        models.Doctor.id == doctor_id,
+        models.Doctor.status == True
+    ).first()
+
     if not doctor:
-        raise HTTPException(404, "Doctor not found")
+        raise HTTPException(status_code=404, detail="Doctor not found")
 
-    if doctor.deleted_at:
-        return {"message": "Doctor already deleted"}
-
-    doctor.deleted_at = datetime.utcnow()
     doctor.status = False
-    db.commit()
+    doctor.deleted_at = datetime.utcnow()
 
-    return {"message": "Doctor deleted successfully", "doctor_id": doctor_id}
+    db.commit()
+    db.refresh(doctor)
+
+    return {
+        "message": "Doctor deleted successfully",
+        "doctor_id": doctor.id,
+        "deleted_at": doctor.deleted_at
+    }
+
+# 7. SHOW ALL APPOINTMENTS TO ADMIN
+@router.get("/appointments/all")
+def get_all_appointments(db: Session = Depends(get_db)):
+    appointments = (
+        db.query(models.Appointment)
+        .join(models.Patient, models.Appointment.patient_id == models.Patient.id)
+        .join(models.Doctor, models.Appointment.doctor_id == models.Doctor.id)
+        .join(models.Slot, models.Appointment.slot_id == models.Slot.id)
+        .all()
+    )
+
+    return [
+        {
+            "appointment_id": a.id,
+            "patient_name": a.patient.name,
+            "doctor_name": a.doctor.name,
+            "date": a.slot.date,
+            "start_time": a.slot.start_time.strftime("%H:%M"),
+            "end_time": a.slot.end_time.strftime("%H:%M"),
+            "status": a.status,
+        }
+        for a in appointments
+    ]
+
+@router.get("/admin/doctors", response_model=list[DoctorOut])
+def get_doctors(db: Session = Depends(get_db)):
+    doctors = db.query(models.Doctor).filter(models.Doctor.status == True).all()
+    return doctors

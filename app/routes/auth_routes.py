@@ -8,15 +8,13 @@ from datetime import datetime
 
 router = APIRouter(prefix="/auth")
 
-
+# 1. Creates a new user account with 'patient' role and patient profile.
 @router.post("/register", response_model=schemas.UserResponse)
 def register_user(request: schemas.RegisterRequest, db: Session = Depends(get_db)):
    
     existing_user = db.query(models.User).filter(models.User.email == request.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
-
-    
     
     user = models.User(
         email=request.email,
@@ -27,8 +25,6 @@ def register_user(request: schemas.RegisterRequest, db: Session = Depends(get_db
     db.add(user)
     db.commit()
     db.refresh(user)
-
-   
    
     role = db.query(models.Role).filter(models.Role.name == "patient").first()
     if not role:
@@ -41,8 +37,6 @@ def register_user(request: schemas.RegisterRequest, db: Session = Depends(get_db
     db.add(user_role)
     db.commit()
 
-    
-    
     patient = models.Patient(
         user_id=user.id,
         name=request.name,
@@ -56,7 +50,7 @@ def register_user(request: schemas.RegisterRequest, db: Session = Depends(get_db
 
     return {"id": user.id, "email": user.email, "role": "patient"}
 
-
+# 2. Verifies credentials and returns JWT access & refresh tokens with role-based info.
 @router.post("/login", response_model=schemas.TokenResponse)
 def login_user(request: schemas.LoginRequest, db: Session = Depends(get_db)):
 
@@ -75,12 +69,23 @@ def login_user(request: schemas.LoginRequest, db: Session = Depends(get_db)):
     role_name = user_role[0]
 
     doctor_id = None
+    doctor_name = None
 
-    if role_name.lower() == "doctor":   # Use exact case
+    # If user is doctor → fetch doctor profile
+    if role_name.lower() == "doctor":
         doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
         if doctor:
             doctor_id = doctor.id
-            
+            doctor_name = doctor.name
+
+    # If user is patient → fetch patient name
+    patient_name = None
+    if role_name.lower() == "patient":
+        patient = db.query(models.Patient).filter(models.Patient.user_id == user.id).first()
+        if patient:
+            patient_name = patient.name
+
+    # Token payload
     payload = {
         "sub": user.email,
         "user_id": user.id,
@@ -94,18 +99,40 @@ def login_user(request: schemas.LoginRequest, db: Session = Depends(get_db)):
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "role": role_name
+        "email": user.email,
+        "role": role_name,
+        "userId": user.id,
+        "doctorId": doctor_id,
+        "name": doctor_name if doctor_name else patient_name
     }
 
-
-
-
+# 3. Confirms token validity and returns user identity + role profile details.
 @router.get("/validate-token")
-def validate_token(payload = Depends(verify_token)):
+def validate_token(payload = Depends(verify_token), db: Session = Depends(get_db)):
+    user_id = payload.get("user_id")
+    role = payload.get("role")
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+
+    doctor_id = None
+    doctor_name = None
+
+    if role.lower() == "doctor":
+        doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user_id).first()
+        if doctor:
+            doctor_id = doctor.id
+            doctor_name = doctor.name
+
+    patient_name = None
+    if role.lower() == "patient":
+        patient = db.query(models.Patient).filter(models.Patient.user_id == user_id).first()
+        if patient:
+            patient_name = patient.name
+
     return {
-        "message": "Token is valid",
-        "email": payload.get("sub"),
-        "role": payload.get("role"),
-        "user_id": payload.get("user_id"),
-        "doctor_id": payload.get("doctor_id")
+        "email": user.email,
+        "role": role,
+        "userId": user_id,     
+        "doctorId": doctor_id, 
+        "name": doctor_name if doctor_name else patient_name
     }
