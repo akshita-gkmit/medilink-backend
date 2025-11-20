@@ -59,11 +59,11 @@ def register_user(request: schemas.RegisterRequest, db: Session = Depends(get_db
 
 @router.post("/login", response_model=schemas.TokenResponse)
 def login_user(request: schemas.LoginRequest, db: Session = Depends(get_db)):
-    
+
     user = db.query(models.User).filter(models.User.email == request.email).first()
 
     if not user or not verify_password(request.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
     user_role = (
         db.query(models.Role.name)
@@ -72,15 +72,24 @@ def login_user(request: schemas.LoginRequest, db: Session = Depends(get_db)):
         .first()
     )
 
-    if not user_role:
-        raise HTTPException(status_code=400, detail="Role not assigned")
+    role_name = user_role[0]
 
-    role_name = user_role[0]   #patient / doctor / admin
+    doctor_id = None
 
+    if role_name.lower() == "doctor":   # Use exact case
+        doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+        if doctor:
+            doctor_id = doctor.id
+            
+    payload = {
+        "sub": user.email,
+        "user_id": user.id,
+        "role": role_name,
+        "doctor_id": doctor_id
+    }
 
-    token_data = {"sub": user.email, "role": role_name}
-    access_token = create_access_token(data=token_data)
-    refresh_token = create_refresh_token(data=token_data)
+    access_token = create_access_token(payload)
+    refresh_token = create_refresh_token(payload)
 
     return {
         "access_token": access_token,
@@ -88,11 +97,15 @@ def login_user(request: schemas.LoginRequest, db: Session = Depends(get_db)):
         "role": role_name
     }
 
+
+
+
 @router.get("/validate-token")
 def validate_token(payload = Depends(verify_token)):
     return {
         "message": "Token is valid",
         "email": payload.get("sub"),
-        "role": payload.get("role")
+        "role": payload.get("role"),
+        "user_id": payload.get("user_id"),
+        "doctor_id": payload.get("doctor_id")
     }
-
