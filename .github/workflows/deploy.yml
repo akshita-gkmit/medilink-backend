@@ -8,25 +8,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Deploy Backend to EC2
+    - name: Deploy to EC2
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ubuntu
         key: ${{ secrets.EC2_SSH_KEY }}
+
         script: |
           cd /home/ubuntu/medilink-backend
           git fetch --all
-          git reset --hard origin/feature/deploy
+          git reset --hard origin /feature/deploy
 
-          if [ ! -d "venv" ]; then
-            python3 -m venv venv
+          if [ ! -d ".venv" ]; then
+            python3 -m venv .venv
           fi
-
-          source venv/bin/activate
+          source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
-
           pm2 stop medilink-backend || true
-          pm2 start "venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000" --name medilink-backend
+          pm2 start "/home/ubuntu/medilink-backend/.venv/bin/python" --name medilink-backend -- \
+            -m uvicorn main:app --host 0.0.0.0 --port 8000
           pm2 save
