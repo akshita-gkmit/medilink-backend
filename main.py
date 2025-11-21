@@ -1,3 +1,4 @@
+import os
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,15 +16,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="MediLink API")
 
-origins = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    "http://localhost:4173",
-    "http://54.193.174.61",
-    "http://127.0.0.1:4173",
-]
+origins = os.getenv('CORS_ALLOWED_ORIGINS').split(',')
 
 app.add_middleware(
     CORSMiddleware,
