@@ -1,3 +1,4 @@
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import Base, engine, SessionLocal
@@ -47,3 +48,6 @@ app.include_router(patient_router)
 @app.get("/")
 def root():
     return {"message": "Welcome to MediLink backend!"}
+
+if __name__ == "__main__":
+ uvicorn.run("app:app", host="0.0.0.0", port=8000)
