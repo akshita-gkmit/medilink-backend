@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import datetime, timedelta, time as dt_time, date as dt_date, date
 from app.config.auth import RoleChecker
 from app.db.database import get_db
 from app.models.models import Appointment, Slot
 from app.schemas.schemas import AppointmentCreate, AppointmentCancel
+from app.models.models import Slot  # adjust import if your models file path differs
+from pydantic import BaseModel
+from typing import List
 
 router = APIRouter(prefix="/appointments", tags=["Appointments"])
 patient_access=RoleChecker(["patient"])
@@ -97,3 +100,59 @@ def reject_appointment(appointment_id: int, db: Session = Depends(get_db)):
     appt.status = "rejected"
     db.commit()
     return {"message": "Appointment rejected Successfully"}
+
+
+
+router = APIRouter(prefix="/doctor", tags=["doctor"])
+
+class SlotOut(BaseModel):
+    id: int
+    doctor_id: int
+    date: str
+    start_time: str
+    end_time: str
+    status: str
+
+    class Config:
+        orm_mode = True
+
+
+@router.get("/{doctor_id}/slots", response_model=List[SlotOut])
+def get_available_slots(
+    doctor_id: int,
+    date: dt_date = Query(..., description="Date in YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+):
+    """
+    Return slots for `doctor_id` on a given date that start at least 1 hour
+    after current time (server time).
+    """
+    # Validate input date
+    if not isinstance(date, dt_date):
+        raise HTTPException(status_code=422, detail="Invalid date")
+
+    # Query DB for available slots (status = 'Available')
+    try:
+        slots_q = (
+            db.query(Slot)
+            .filter(Slot.doctor_id == doctor_id)
+            .filter(Slot.date == date)
+            .filter(Slot.status == "Available")
+            .all()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    now = datetime.utcnow()
+    cutoff = now + timedelta(hours=1)
+
+    result = []
+    for s in slots_q:
+        try:
+            slot_dt = datetime.combine(s.date, s.start_time)
+        except Exception:
+            continue
+        if slot_dt >= cutoff:
+            result.append(s)
+
+    return result

@@ -6,11 +6,9 @@ from app.enums.gender import GenderEnum
 
 logger = logging.getLogger(__name__)
 
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ---- DEFAULT SEED DATA ----
-ROLES = ["Admin", "Doctor", "Patient"]
+ROLES = ["admin", "doctor", "patient"]
 
 ADMIN_EMAIL = "admin@medilink.com"
 DOCTOR_EMAIL = "doctor1@medilink.com"
@@ -18,9 +16,7 @@ PATIENT_EMAIL = "patient1@gmail.com"
 
 DEFAULT_PASSWORD = "Password@123"
 
-
 def _seed_roles(db: Session):
-    """Seed default roles if missing."""
     existing_roles = {r.name for r in db.query(Role).all()}
 
     required_roles = {"Admin", "Doctor", "Patient"}
@@ -35,10 +31,7 @@ def _seed_roles(db: Session):
     else:
         logger.info("All roles already exist.")
 
-
-
 def _create_user(db: Session, email: str, role_name: str):
-    """Create a user with the given role if not exists."""
     user = db.query(User).filter(User.email == email).first()
     if user:
         logger.info(f"{role_name} user already exists.")
@@ -51,7 +44,6 @@ def _create_user(db: Session, email: str, role_name: str):
     db.commit()
     db.refresh(user)
 
-    # Attach role
     role = db.query(Role).filter(Role.name == role_name).first()
     user_role = UserRole(user_id=user.id, role_id=role.id)
     db.add(user_role)
@@ -60,10 +52,8 @@ def _create_user(db: Session, email: str, role_name: str):
     logger.info(f"{role_name} user created.")
     return user
 
-
 def _seed_admin(db: Session):
     return _create_user(db, ADMIN_EMAIL, "Admin")
-
 
 def _seed_doctor(db: Session):
     user = _create_user(db, DOCTOR_EMAIL, "Doctor")
@@ -85,7 +75,6 @@ def _seed_doctor(db: Session):
     db.add(doctor)
     db.commit()
     logger.info("Doctor details seeded.")
-
 
 def _seed_patient(db: Session):
     user = _create_user(db, PATIENT_EMAIL, "Patient")

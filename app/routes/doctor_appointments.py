@@ -21,31 +21,35 @@ def update_appointment_status(data: AppointmentStatusUpdate, db: Session = Depen
         raise HTTPException(404, "Appointment not found.")
 
     slot = db.query(Slot).filter(Slot.id == appointment.slot_id).first()
-    # APPROVE → Confirm appointment
+
+    # APPROVE
     if data.action.lower() == "approve":
-        appointment.status = "Approved"
-        slot.status = "Confirmed"
+        appointment.status = "approved"
+        slot.status = "confirmed"
         appointment.notes = data.notes
         db.commit()
-        return {"message": "Appointment approved successfully."}
-    # REJECT → Free the slot
+        return {"message": "Appointment approved successfully"}
+
+    # REJECT
     elif data.action.lower() == "reject":
-        appointment.status = "Rejected"
-        slot.status = "Inactive" 
+        appointment.status = "rejected"
+        slot.status = "available"   
         appointment.notes = data.notes
         db.commit()
-        return {"message": "Appointment rejected successfully."}
-    # Invalid action
+        return {"message": "Appointment rejected successfully"}
+
     else:
         raise HTTPException(400, "Invalid action. Use 'approve' or 'reject'.")
+
 
 # 2. Returns a doctor's appointments with patient name and slot timings.
 @router.get("/doctor/{doctor_id}/appointments")
 def get_doctor_appointments(doctor_id: int, db: Session = Depends(get_db)):
     appointments = (
         db.query(Appointment)
+        .join(Slot, Appointment.slot_id == Slot.id)
         .filter(Appointment.doctor_id == doctor_id)
-        .order_by(Appointment.date)
+        .order_by(Slot.date)
         .all()
     )
 
@@ -54,13 +58,14 @@ def get_doctor_appointments(doctor_id: int, db: Session = Depends(get_db)):
         result.append({
             "id": a.id,
             "patient_name": a.patient.name if a.patient else None,
-            "date": str(a.date),
-            "start_time": str(a.start_time),
-            "end_time": str(a.end_time),
+            "date": str(a.slot.date),
+            "start_time": a.slot.start_time.strftime("%H:%M"),
+            "end_time": a.slot.end_time.strftime("%H:%M"),
             "status": a.status
         })
 
     return result
+
 
 # 3. Marks a specific appointment as approved.
 @router.patch("/doctor/appointments/{appointment_id}/approve")

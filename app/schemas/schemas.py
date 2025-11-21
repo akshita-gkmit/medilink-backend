@@ -1,15 +1,25 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 from datetime import date
 from app.enums.gender import GenderEnum
+import re
+
+STRICT_EMAIL_REGEX = r"^[a-z0-9._%+-]+@[a-z]+\.[a-z]{2,6}$"
+
 
 class RegisterRequest(BaseModel):
     name: str
-    email: EmailStr
+    email: str
     password: str
     gender: str
     dob: date
     blood_group: Optional[str] = None
+
+    @field_validator("email")
+    def validate_email(cls, v):
+        if not re.match(STRICT_EMAIL_REGEX, v):
+            raise ValueError("Invalid email format")
+        return v
 
     model_config = {"from_attributes": True}
 

@@ -105,7 +105,6 @@ def cancel_appointment(appointment_id: int, db: Session = Depends(get_db)):
     if slot:
         slot.status = "Available"
 
-    # DO NOT DELETE — just update status
     appt.status = "Cancelled"
     appt.deleted_at = datetime.utcnow()
     db.commit()
@@ -121,7 +120,7 @@ def get_history(patient_id: int, db: Session = Depends(get_db)):
         .join(models.Slot)
         .join(models.Doctor)
         .filter(models.Appointment.patient_id == patient_id)
-        .all()  # INCLUDE everything
+        .all()
     )
 
     return [

@@ -46,7 +46,7 @@ class DoctorOut(BaseModel):
     consultation_fee: int | None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class DoctorAdminUpdate(BaseModel):
     email: EmailStr | None = None

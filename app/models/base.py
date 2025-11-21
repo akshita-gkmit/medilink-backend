@@ -2,7 +2,6 @@ from sqlalchemy import Column, DateTime, Integer
 from sqlalchemy.sql import func
 from app.db.database import Base
 
-
 class BaseModel(Base):
     __abstract__ = True
 
