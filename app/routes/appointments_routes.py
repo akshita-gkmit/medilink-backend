@@ -17,7 +17,7 @@ patient_access=RoleChecker(["patient"])
 def book_appointment(data: AppointmentCreate, db: Session = Depends(get_db)):
 
     slot = db.query(Slot).filter(Slot.id == data.slot_id).first()
-    if not slot:
+    if not slot:    
         raise HTTPException(404, "Slot not found.")
 
     if slot.doctor_id != data.doctor_id:
@@ -113,9 +113,7 @@ class SlotOut(BaseModel):
     end_time: str
     status: str
 
-    class Config:
-        orm_mode = True
-
+    model_config = {"from_attributes": True}
 
 @router.get("/{doctor_id}/slots", response_model=List[SlotOut])
 def get_available_slots(
@@ -123,10 +121,6 @@ def get_available_slots(
     date: dt_date = Query(..., description="Date in YYYY-MM-DD"),
     db: Session = Depends(get_db),
 ):
-    """
-    Return slots for `doctor_id` on a given date that start at least 1 hour
-    after current time (server time).
-    """
     # Validate input date
     if not isinstance(date, dt_date):
         raise HTTPException(status_code=422, detail="Invalid date")

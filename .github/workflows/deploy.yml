@@ -8,19 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Copy backend files to EC2
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ubuntu
-        key: ${{ secrets.EC2_SSH_KEY }}
-        source: "./*"
-        target: "/home/ubuntu/medilink-backend"
-
-    - name: Run deployment commands on EC2
+    - name: Deploy Backend to EC2
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.EC2_HOST }}
@@ -28,16 +16,17 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
           cd /home/ubuntu/medilink-backend
-          
-          # Create virtual environment if not exists
+          git fetch --all
+          git reset --hard origin/feature/deploy
+
           if [ ! -d "venv" ]; then
             python3 -m venv venv
           fi
 
-          # Activate venv and install dependencies
           source venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
 
-          # Restart FastAPI service
-          unicorn main:app --reload
+          pm2 stop medilink-backend || true
+          pm2 start "venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000" --name medilink-backend
+          pm2 save
