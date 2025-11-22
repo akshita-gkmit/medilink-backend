@@ -103,7 +103,7 @@ def reject_appointment(appointment_id: int, db: Session = Depends(get_db)):
 
 
 
-router = APIRouter(prefix="/doctor", tags=["doctor"])
+doctor_slot = APIRouter(prefix="/doctor", tags=["doctor"])
 
 class SlotOut(BaseModel):
     id: int
@@ -115,7 +115,7 @@ class SlotOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
-@router.get("/{doctor_id}/slots", response_model=List[SlotOut])
+@doctor_slot.get("/{doctor_id}/slots", response_model=List[SlotOut])
 def get_available_slots(
     doctor_id: int,
     date: dt_date = Query(..., description="Date in YYYY-MM-DD"),
