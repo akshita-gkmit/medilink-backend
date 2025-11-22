@@ -92,6 +92,23 @@ def create_doctor_slots(payload: SlotCreate, db: Session = Depends(get_db)):
     if not payload.slots or len(payload.slots) == 0:
         raise HTTPException(status_code=400, detail="No time slots provided")
 
+    if payload.date == today:
+    for slot in payload.slots:
+        slot_start = datetime.strptime(slot.start_time, "%H:%M").time()
+        slot_end = datetime.strptime(slot.end_time, "%H:%M").time()
+
+        if slot_start < now:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot create slot earlier than the current time"
+            )
+
+        if slot_end <= slot_start:
+            raise HTTPException(
+                status_code=400,
+                detail="Slot end time must be after start time"
+            )
+
     # Remove existing slots
     try:
         db.query(models.Slot).filter(
