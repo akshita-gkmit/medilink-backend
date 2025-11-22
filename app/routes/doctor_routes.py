@@ -8,8 +8,6 @@ from app.config.auth import RoleChecker
 from app.config.auth import verify_token
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-
-# bearer_scheme = HTTPBearer(auto_error=False)
 router = APIRouter(prefix="/doctor", tags=["Doctor Slots"])
 doctor_access = RoleChecker(["doctor"])
 
@@ -19,7 +17,6 @@ doctor_access = RoleChecker(["doctor"])
 def doctor_dashboard(doctor_id: int, db: Session = Depends(get_db)):
     today = date.today()
 
-    # Check doctor existence
     doctor = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
@@ -42,7 +39,7 @@ def doctor_dashboard(doctor_id: int, db: Session = Depends(get_db)):
             models.Slot.date > today
         ).count()
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to fetch dashboard data")
 
     return {
@@ -77,12 +74,10 @@ def create_doctor_slots(payload: SlotCreate, db: Session = Depends(get_db)):
     now = datetime.now().time()
     max_date = today + timedelta(days=7)
 
-    # Validate doctor
     doctor = db.query(models.Doctor).filter(models.Doctor.id == payload.doctor_id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
 
-    # Validate date range
     if payload.date < today:
         raise HTTPException(status_code=400, detail="You cannot create slots for a past date")
 
@@ -93,17 +88,16 @@ def create_doctor_slots(payload: SlotCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="No time slots provided")
 
     if payload.date == today:
-    for slot in payload.slots:
-        slot_start = datetime.strptime(slot.start_time, "%H:%M").time()
-        slot_end = datetime.strptime(slot.end_time, "%H:%M").time()
+        for slot in payload.slots:
+            slot_start = datetime.strptime(slot.start_time, "%H:%M").time()
+            slot_end = datetime.strptime(slot.end_time, "%H:%M").time()
 
-        if slot_start < now:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot create slot earlier than the current time"
-            )
+            if slot_start < now:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot create slot earlier than the current time"
+                )
 
-    # Remove existing slots
     try:
         db.query(models.Slot).filter(
             models.Slot.doctor_id == payload.doctor_id,
@@ -113,21 +107,18 @@ def create_doctor_slots(payload: SlotCreate, db: Session = Depends(get_db)):
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to delete previous slots")
 
-    # Create new slots
     try:
         for t in payload.slots:
             try:
-                start = datetime.strptime(t, "%H:%M").time()
+                start = datetime.strptime(t.start_time, "%H:%M").time()
+                end = datetime.strptime(t.end_time, "%H:%M").time()
             except ValueError:
-                raise HTTPException(status_code=400, detail=f"Invalid time format: {t}. Use HH:MM")
+                raise HTTPException(status_code=400, detail="Invalid time format. Use HH:MM")
 
-            end = (datetime.combine(payload.date, start) + timedelta(minutes=30)).time()
-
-            # Prevent creating past slots
             if payload.date == today and start <= now:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Slot time {t} is already past. Cannot create past slots."
+                    detail=f"Slot time {t.start_time} is already past. Cannot create past slots."
                 )
 
             slot = models.Slot(
@@ -142,7 +133,7 @@ def create_doctor_slots(payload: SlotCreate, db: Session = Depends(get_db)):
         db.commit()
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Failed to save slots")
 
     return {"message": "Slots saved successfully"}
@@ -194,7 +185,6 @@ def get_doctor(doctor_id: int, db: Session = Depends(get_db)):
         "updated_at": doctor_data.updated_at.isoformat() if doctor_data.updated_at else None,
         "deleted_at": doctor_data.deleted_at.isoformat() if doctor_data.deleted_at else None,
     }
-
 
 
 # 6 Get doctor appointments
