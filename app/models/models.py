@@ -18,13 +18,11 @@ class User(BaseModel):
     doctor = relationship("Doctor", uselist=False, back_populates="user")
     patient = relationship("Patient", uselist=False, back_populates="user")
 
-
 class Role(BaseModel):
     __tablename__ = "roles"
 
     name = Column(String(50), unique=True, nullable=False)
     users = relationship("UserRole", back_populates="role")
-
 
 class UserRole(BaseModel):
     __tablename__ = "user_roles"
@@ -34,7 +32,6 @@ class UserRole(BaseModel):
 
     user = relationship("User", back_populates="roles")
     role = relationship("Role", back_populates="users")
-
 
 class Patient(BaseModel):
     __tablename__ = "patients"
@@ -47,7 +44,6 @@ class Patient(BaseModel):
 
     user = relationship("User", back_populates="patient")
     appointments = relationship("Appointment", back_populates="patient", cascade="all, delete-orphan")
-
 
 class Doctor(BaseModel):
     __tablename__ = "doctors"
@@ -67,7 +63,6 @@ class Doctor(BaseModel):
     user = relationship("User", back_populates="doctor")
     slots = relationship("Slot", back_populates="doctor", cascade="all, delete-orphan")
     appointments = relationship("Appointment", back_populates="doctor", cascade="all, delete-orphan")
-
 
 class Slot(BaseModel):   
     __tablename__ = "slots"
@@ -103,7 +98,6 @@ class Appointment(BaseModel):
     patient = relationship("Patient", back_populates="appointments")
     slot = relationship("Slot", back_populates="appointments")
     prescription = relationship("Prescription", back_populates="appointment", uselist=False, cascade="all, delete-orphan")
-
 
 class Prescription(BaseModel):
     __tablename__ = "prescriptions"

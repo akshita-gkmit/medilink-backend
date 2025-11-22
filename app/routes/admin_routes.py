@@ -125,16 +125,16 @@ def update_doctor(doctor_id: int, payload: DoctorAdminUpdate, db: Session = Depe
 
     doctor = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
     if not doctor:
-        raise HTTPException(404, "Doctor not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Doctor not found"
+        )
 
-    # Update only the fields provided
     update_data = payload.dict(exclude_unset=True)
-    
     for field, value in update_data.items():
         setattr(doctor, field, value)
 
     doctor.updated_at = datetime.utcnow()
-
     db.commit()
     db.refresh(doctor)
 
@@ -145,13 +145,17 @@ def update_doctor(doctor_id: int, payload: DoctorAdminUpdate, db: Session = Depe
 @router.patch("/doctor/delete/{doctor_id}", dependencies=[Depends(RoleChecker(["admin"]))])
 def soft_delete_doctor(doctor_id: int, db: Session = Depends(get_db)):
 
-    doctor = db.query(models.Doctor).filter(
-        models.Doctor.id == doctor_id,
-        models.Doctor.status == True
-    ).first()
+    doctor = (
+        db.query(models.Doctor)
+        .filter(models.Doctor.id == doctor_id, models.Doctor.status == True)
+        .first()
+    )
 
     if not doctor:
-        raise HTTPException(status_code=404, detail="Doctor not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Doctor not found or already deleted"
+        )
 
     doctor.status = False
     doctor.deleted_at = datetime.utcnow()
