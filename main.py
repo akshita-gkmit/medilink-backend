@@ -10,6 +10,7 @@ from app.routes.doctor_routes import router as doctor_router
 from app.routes.admin_routes import router as admin_router
 from app.routes.appointments_routes import router as appointments_router
 from app.routes.doctor_appointments import router as doctor_appointments
+
 from app.routes.patient_routes import router as patient_router
 
 Base.metadata.create_all(bind=engine)

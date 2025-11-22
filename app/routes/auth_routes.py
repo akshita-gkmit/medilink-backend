@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import os
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from datetime import datetime
-
+from datetime import datetime, timedelta
 from app.models import models
 from app.schemas import schemas
 from app.db.database import get_db
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from app.config.auth import (
     get_password_hash, verify_password,
     create_access_token, create_refresh_token, verify_token
@@ -110,7 +112,7 @@ def login_user(request: schemas.LoginRequest, db: Session = Depends(get_db)):
             "sub": user.email,
             "user_id": user.id,
             "role": role_name,
-            "doctor_id": doctor_id  # ✅ SAFE now
+            "doctor_id": doctor_id 
         }
 
         access_token = create_access_token(payload)
@@ -172,3 +174,69 @@ def validate_token(payload=Depends(verify_token), db: Session = Depends(get_db))
     except Exception as e:
         print("Token validation error:", str(e))
         raise HTTPException(status_code=500, detail="Token validation failed")
+    
+
+@router.post("/forgot-password")
+def forgot_password(request: schemas.ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+
+    # 1. Find user
+    user = db.query(models.User).filter(models.User.email == request.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not found")
+
+    # 2. Generate token + expiration
+    reset_token = generate_reset_token()
+    expiry_time = datetime.utcnow() + timedelta(minutes=30)
+
+    user.reset_token = reset_token
+    user.reset_token_expires = expiry_time
+    db.commit()
+
+    # 3. Send email
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+
+    conf = ConnectionConfig(
+        MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
+        MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
+        MAIL_PORT=int(os.getenv("MAIL_PORT")),
+        MAIL_SERVER=os.getenv("MAIL_SERVER"),
+        MAIL_FROM=os.getenv("MAIL_FROM"),
+        MAIL_STARTTLS=True,
+        MAIL_SSL_TLS=False,
+        VALIDATE_CERTS=True
+    )
+
+    message = MessageSchema(
+        subject="Password Reset Request",
+        recipients=[request.email],
+        body=f"""
+            <h3>Password Reset</h3>
+            <p>Click the link below to reset your password:</p>
+            <a href="{reset_link}">{reset_link}</a>
+            <p>This link expires in 30 minutes.</p>
+        """,
+        subtype=MessageType.html
+    )
+
+    fm = FastMail(conf)
+    background_tasks.add_task(fm.send_message, message)
+
+    return {"message": "Reset link sent to your email"}
+
+def generate_reset_token():
+    return str(uuid.uuid4())
+
+@router.post("/reset-password")
+def reset_password(request: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.reset_token == request.token).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid token")
+    if user.reset_token_expires < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Reset token expired")
+    user.password_hash = get_password_hash(request.new_password)
+    user.reset_token = None
+    user.reset_token_expires = None
+
+    db.commit()
+    return {"message": "Password reset successful"}
