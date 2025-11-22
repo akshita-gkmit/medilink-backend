@@ -90,7 +90,6 @@ def create_doctor_slots(payload: SlotCreate, db: Session = Depends(get_db)):
     if payload.date == today:
         for slot in payload.slots:
             slot_start = datetime.strptime(slot.start_time, "%H:%M").time()
-            slot_end = datetime.strptime(slot.end_time, "%H:%M").time()
 
             if slot_start < now:
                 raise HTTPException(
